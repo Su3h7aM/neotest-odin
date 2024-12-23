@@ -30,7 +30,15 @@ end
 ---@param root string Root directory of project
 ---@return boolean
 function odin.adapter.filter_dir(name, rel_path, root)
-	return false
+	local ignore_dirs = { ".git", "node_modules", ".venv", "venv", "build", "bin" }
+
+	for _, ignore in ipairs(ignore_dirs) do
+		if name == ignore then
+			return false
+		end
+	end
+
+	return true
 end
 
 ---@async
