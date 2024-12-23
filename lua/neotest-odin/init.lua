@@ -45,7 +45,17 @@ end
 ---@param file_path string
 ---@return boolean
 function odin.adapter.is_test_file(file_path)
-	return vim.endswith(file_path, "_test.odin")
+	local is_odin = vim.endswith(file_path, ".odin")
+	local is_test = false
+
+	if is_odin then
+		local content = lib.files.read(file_path)
+		local tree = lib.treesitter.parse_positions_from_string(file_path, content, odin._test_query, {})
+
+		is_test = #tree:to_list() > 1
+	end
+
+	return is_test
 end
 
 ---@async
