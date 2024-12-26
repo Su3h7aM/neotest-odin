@@ -4,7 +4,7 @@ local odin = {}
 
 odin.adapter = {
 	name = "neotest-odin",
-	version = "v0.1.0",
+	version = "v0.1.1",
 }
 
 odin._test_query = [[
