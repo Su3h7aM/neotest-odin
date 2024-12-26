@@ -8,10 +8,6 @@ odin.adapter = {
 }
 
 odin._test_query = [[
-    ;; query package
-    (package_declaration
-        (identifier) @package.name ) @package.definition
-    
     ;; query for test procedures
     (procedure_declaration
         (attributes
@@ -61,12 +57,53 @@ function odin.adapter.is_test_file(file_path)
 	return is_test
 end
 
+odin._get_match_type = function(captured_nodes)
+	if captured_nodes["test.name"] then
+		return "test"
+	end
+end
+
+odin._build_position = function(file_path, source, captured_nodes)
+	local match_type = odin._get_match_type(captured_nodes)
+	if match_type then
+		---@type string
+		local name = vim.treesitter.get_node_text(captured_nodes[match_type .. ".name"], source)
+		local definition = captured_nodes[match_type .. ".definition"]
+
+		local pkg = ""
+		if match_type == "test" then
+			pkg = source:match("^%s*package%s+(%w+)")
+		end
+
+		return {
+			type = match_type,
+			path = file_path,
+			name = name,
+			range = { definition:range() },
+			pkg = pkg,
+		}
+	end
+end
+
+odin._position_id = function(position)
+	if position.type == "test" then
+		return position.path .. "::" .. position.pkg .. "::" .. position.name
+	end
+
+	return position.path
+end
+
 ---@async
 ---@param file_path string Absolute file path
 ---@return neotest.Tree | nil
 function odin.adapter.discover_positions(file_path)
 	--TODO: stop using the builtin parse_positions(), build a custom for generate a real tree
-	local positions = lib.treesitter.parse_positions(file_path, odin._test_query, {})
+	local positions = lib.treesitter.parse_positions(file_path, odin._test_query, {
+		require_namespaces = false,
+		nested_tests = false,
+		build_position = odin._build_position,
+		position_id = odin._position_id,
+	})
 
 	return positions
 end
@@ -84,7 +121,13 @@ function odin.adapter.build_spec(args)
 
 	if position.type == "test" then
 		table.insert(specs, {
-			command = "odin test " .. head_path .. " -define:ODIN_TEST_NAMES=main." .. position.name .. flags,
+			command = "odin test "
+				.. head_path
+				.. " -define:ODIN_TEST_NAMES="
+				.. position.pkg
+				.. "."
+				.. position.name
+				.. flags,
 			context = {
 				name = position.name,
 				id = position.id,
