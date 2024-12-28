@@ -127,7 +127,8 @@ function odin.adapter.build_spec(args)
 				.. position.pkg
 				.. "."
 				.. position.name
-				.. flags,
+				.. flags
+				.. " > /dev/null",
 			context = {
 				name = position.name,
 				id = position.id,
@@ -178,6 +179,35 @@ function odin.adapter.results(spec, result, tree)
 	-- local line = output:read("*a")
 	-- output:close()
 
+	local sucess, file = pcall(lib.files.read_lines, result.output)
+
+	if not sucess then
+		lib.notify("Error reading file: " .. result.output)
+	end
+
+	local n_errors = 1
+	local errors = {}
+	local short = ""
+	for _, line in ipairs(file) do
+		local is_error = line:match("%[ERROR%]")
+		local is_finished = line:match("Finished")
+
+		if is_error then
+			local file_name, err_line, proc, msg = line:match("%[(%w-[_%w]%w-%.odin):(%d-):(%w-[_%w]%w-)%(%)%]%s(.*)")
+
+			errors[n_errors] = {
+				message = msg,
+				line = tonumber(err_line) - 1,
+			}
+
+			n_errors = n_errors + 1
+		end
+
+		if is_finished then
+			short = line
+		end
+	end
+
 	local status = "failed"
 	if result.code == 0 then
 		status = "passed"
@@ -188,10 +218,8 @@ function odin.adapter.results(spec, result, tree)
 		[spec.context.id] = {
 			status = status,
 			output = result.output,
-			--          short = "testando: ola",
-			-- errors = {
-			-- 	{ message = "erro", line = 5 },
-			-- },
+			short = short,
+			errors = errors,
 		},
 	}
 
